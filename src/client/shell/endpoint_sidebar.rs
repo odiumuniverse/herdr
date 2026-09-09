@@ -20,13 +20,15 @@ pub(super) fn render_collapsed(
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
-    super::render::render_sidebar_background(buffer, area, palette);
+    super::render::render_sidebar_background(buffer, area, palette, config.sidebar_position);
     // Hidden Spaces keep the machine rows: they are how a machine is chosen.
     let show_spaces =
         super::sidebar::spaces_section_visible(config, state.selected_workspace_id.is_some());
     let machine_rows = u16::try_from(state.endpoints.len()).unwrap_or(u16::MAX);
-    let (workspace_area, divider_y, detail_area) =
-        super::sidebar::collapsed_sidebar_sections(area, (!show_spaces).then_some(machine_rows));
+    let (workspace_area, divider_y, detail_area) = super::sidebar::collapsed_sidebar_sections(
+        config.sidebar_position.sidebar_content(area),
+        (!show_spaces).then_some(machine_rows),
+    );
     let mut total_rows = 0usize;
     let mut selected_row = None;
     let reveal = std::mem::take(state.reveal_navigation_workspace);
@@ -234,7 +236,7 @@ pub(super) fn render_collapsed(
         hits.sidebar_toggle.x,
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
-        "»",
+        config.sidebar_position.sidebar_toggle_glyph(true),
         Style::default().fg(palette.overlay0),
     );
 }
@@ -244,28 +246,26 @@ pub(super) fn render_expanded(
     area: Rect,
     active_snapshot: Option<&ClientShellSnapshot>,
     config: &ClientShellConfig,
+    position: SidebarPositionConfig,
     state: &mut ShellRenderState<'_>,
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
-    super::render::render_sidebar_background(buffer, area, palette);
-    hits.sidebar_divider = if area.is_empty() {
-        Rect::default()
-    } else {
-        Rect::new(area.right().saturating_sub(1), area.y, 1, area.height)
-    };
+    super::render::render_sidebar_background(buffer, area, palette, position);
+    hits.sidebar_divider = position.sidebar_divider(area);
+    let content = position.sidebar_content(area);
     // Hidden Spaces keep the machine rows: they are how a machine is chosen.
     // The section then fits them, so there is no split left to drag.
     let show_spaces =
         super::sidebar::spaces_section_visible(config, state.selected_workspace_id.is_some());
     let (workspace_area, detail_area) = if show_spaces {
         hits.sidebar_section_divider =
-            crate::ui::sidebar_section_divider_rect(area, state.sidebar_section_split);
-        crate::ui::expanded_sidebar_sections(area, state.sidebar_section_split)
+            crate::ui::sidebar_section_divider_rect(content, state.sidebar_section_split);
+        crate::ui::expanded_sidebar_sections(content, state.sidebar_section_split)
     } else {
         let machine_rows = u16::try_from(state.endpoints.len()).unwrap_or(u16::MAX);
         crate::ui::fitted_sidebar_sections(
-            area,
+            content,
             machine_rows.saturating_add(WORKSPACE_HEADER_ROWS + 1),
         )
     };
@@ -580,7 +580,10 @@ pub(super) fn render_expanded(
         hits,
     );
     hits.sidebar_toggle = Rect::new(
-        area.right().saturating_sub(2),
+        match position {
+            SidebarPositionConfig::Left => area.right().saturating_sub(2),
+            SidebarPositionConfig::Right => position.sidebar_content(area).x,
+        },
         area.bottom().saturating_sub(1),
         u16::from(area.width > 1),
         u16::from(area.height > 0),
@@ -590,7 +593,7 @@ pub(super) fn render_expanded(
         hits.sidebar_toggle.x,
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
-        "«",
+        position.sidebar_toggle_glyph(false),
         Style::default().fg(palette.overlay0),
     );
 }

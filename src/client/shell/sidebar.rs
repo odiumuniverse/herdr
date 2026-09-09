@@ -38,10 +38,9 @@ pub(in crate::client::shell) fn spaces_section_visible(
 /// `top_rows` sizes the top section to its content; `None` splits evenly.
 /// `Some(0)` leaves the whole rail to agents, with no divider.
 pub(in crate::client::shell) fn collapsed_sidebar_sections(
-    area: Rect,
+    content: Rect,
     top_rows: Option<u16>,
 ) -> (Rect, Option<u16>, Rect) {
-    let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     if content.is_empty() {
         return (Rect::default(), None, Rect::default());
     }
@@ -77,10 +76,12 @@ pub(crate) fn render_collapsed_sidebar(
     let palette = &config.palette;
     let selection_background = workspace_selection_background(palette);
     let active_background = workspace_active_background(palette, selected_workspace_id.is_some());
-    render_sidebar_background(buffer, area, palette);
+    render_sidebar_background(buffer, area, palette, config.sidebar_position);
     let show_spaces = spaces_section_visible(config, selected_workspace_id.is_some());
-    let (workspace_area, divider_y, detail_area) =
-        collapsed_sidebar_sections(area, (!show_spaces).then_some(0));
+    let (workspace_area, divider_y, detail_area) = collapsed_sidebar_sections(
+        config.sidebar_position.sidebar_content(area),
+        (!show_spaces).then_some(0),
+    );
     for (index, workspace) in snapshot
         .workspaces
         .iter()
@@ -209,7 +210,7 @@ pub(crate) fn render_collapsed_sidebar(
         hits.sidebar_toggle.x,
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
-        "»",
+        config.sidebar_position.sidebar_toggle_glyph(true),
         if super::super::global_menu::global_menu_attention(snapshot) {
             Style::default()
                 .fg(palette.accent)
@@ -229,20 +230,20 @@ pub(crate) fn render_sidebar(
     hits: &mut ShellHitMap,
 ) {
     let palette = &config.palette;
-    render_sidebar_background(buffer, area, palette);
-    hits.sidebar_divider = if area.is_empty() {
-        Rect::default()
-    } else {
-        Rect::new(area.right().saturating_sub(1), area.y, 1, area.height)
-    };
+    render_sidebar_background(buffer, area, palette, config.sidebar_position);
+    hits.sidebar_divider = config.sidebar_position.sidebar_divider(area);
     if !spaces_section_visible(config, state.selected_workspace_id.is_some()) {
         render_sidebar_without_spaces(buffer, area, snapshot, config, state, hits);
         return;
     }
-    let (workspace_area, detail_area) =
-        crate::ui::expanded_sidebar_sections(area, state.sidebar_section_split);
-    hits.sidebar_section_divider =
-        crate::ui::sidebar_section_divider_rect(area, state.sidebar_section_split);
+    let (workspace_area, detail_area) = crate::ui::expanded_sidebar_sections(
+        config.sidebar_position.sidebar_content(area),
+        state.sidebar_section_split,
+    );
+    hits.sidebar_section_divider = crate::ui::sidebar_section_divider_rect(
+        config.sidebar_position.sidebar_content(area),
+        state.sidebar_section_split,
+    );
     put_text(
         buffer,
         workspace_area.x,
@@ -426,7 +427,7 @@ pub(crate) fn render_sidebar(
         true,
     );
 
-    render_sidebar_toggle(buffer, area, palette, hits);
+    render_sidebar_toggle(buffer, area, config, hits);
 }
 
 /// The sidebar with its Spaces section hidden: the agents panel takes the
@@ -440,7 +441,7 @@ fn render_sidebar_without_spaces(
     state: &mut ShellRenderState<'_>,
     hits: &mut ShellHitMap,
 ) {
-    let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
+    let content = config.sidebar_position.sidebar_content(area);
     let footer_y = content.bottom().saturating_sub(1);
     super::render_agent_panel(
         buffer,
@@ -456,20 +457,31 @@ fn render_sidebar_without_spaces(
         hits,
         false,
     );
-    // `«` takes the last column; keep one blank column before it.
+    // The toggle takes the column at the sidebar's outer edge. On the left
+    // edge `menu` keeps one blank column before `«`; on the right edge the
+    // leading blank of ` new` already separates it from `»`.
+    let footer = match config.sidebar_position {
+        SidebarPositionConfig::Left => {
+            Rect::new(content.x, footer_y, content.width.saturating_sub(2), 1)
+        }
+        SidebarPositionConfig::Right => Rect::new(
+            content.x.saturating_add(1),
+            footer_y,
+            content.width.saturating_sub(1),
+            1,
+        ),
+    };
     render_spaces_footer(
         buffer,
-        Rect::new(
-            content.x,
-            footer_y,
-            content.width.saturating_sub(2),
-            u16::from(content.height > 0),
-        ),
+        Rect {
+            height: u16::from(content.height > 0),
+            ..footer
+        },
         snapshot,
         config,
         hits,
     );
-    render_sidebar_toggle(buffer, area, &config.palette, hits);
+    render_sidebar_toggle(buffer, area, config, hits);
 }
 
 /// ` new` on the left and `menu` on the right of `footer`'s row.
@@ -535,11 +547,15 @@ fn render_spaces_footer(
 fn render_sidebar_toggle(
     buffer: &mut Buffer,
     area: Rect,
-    palette: &Palette,
+    config: &ClientShellConfig,
     hits: &mut ShellHitMap,
 ) {
+    let palette = &config.palette;
     hits.sidebar_toggle = Rect::new(
-        area.right().saturating_sub(2),
+        match config.sidebar_position {
+            SidebarPositionConfig::Left => area.right().saturating_sub(2),
+            SidebarPositionConfig::Right => config.sidebar_position.sidebar_content(area).x,
+        },
         area.bottom().saturating_sub(1),
         u16::from(area.width > 1),
         u16::from(area.height > 0),
@@ -549,7 +565,7 @@ fn render_sidebar_toggle(
         hits.sidebar_toggle.x,
         hits.sidebar_toggle.y,
         hits.sidebar_toggle.width,
-        "«",
+        config.sidebar_position.sidebar_toggle_glyph(false),
         Style::default().fg(palette.overlay0),
     );
 }
