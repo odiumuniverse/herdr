@@ -391,3 +391,65 @@ fn settings_sidebar_section_writes_and_applies_the_spaces_mode() {
     state.compose(106, 30).expect("hidden after save");
     assert!(state.hits.workspaces.is_empty());
 }
+
+#[test]
+fn settings_sidebar_section_marks_current_values_and_moves_the_sidebar() {
+    let _guard = crate::config::test_config_env_lock()
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+    let dir = std::env::temp_dir().join(format!("herdr-sidebar-edge-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("temp dir");
+    let path = dir.join("config.toml");
+    std::fs::write(&path, "[ui]\naccent = \"#f5a97f\"\n").expect("seed config");
+    std::env::set_var(crate::config::CONFIG_PATH_ENV_VAR, &path);
+
+    let mut state = state_with(&Config::default());
+    state.open_settings_overlay();
+    state.compose(106, 30).expect("settings overlay");
+    let tab = state
+        .hits
+        .settings_tabs
+        .iter()
+        .find(|(_, section)| *section == ClientSettingsSection::Sidebar)
+        .map(|(rect, _)| *rect)
+        .expect("sidebar tab");
+    mouse(&mut state, MouseEventKind::Down(MouseButton::Left), tab);
+    let frame = state.compose(106, 30).expect("sidebar settings");
+    let text = frame_rows(&frame).join("\n");
+    assert!(text.contains("sidebar edge"), "{text}");
+    assert!(text.contains("shown ✓"), "{text}");
+    assert!(text.contains("left ✓"), "{text}");
+    assert!(!text.contains("right ✓"), "{text}");
+
+    for _ in 0..3 {
+        state.handle_input_bytes(b"j");
+    }
+    state.handle_input_bytes(b"\r");
+
+    let written = std::fs::read_to_string(&path).expect("written config");
+    std::env::remove_var(crate::config::CONFIG_PATH_ENV_VAR);
+    let _ = std::fs::remove_dir_all(&dir);
+
+    let parsed: Config = toml::from_str(&written).expect("written config parses");
+    assert_eq!(
+        parsed.ui.sidebar_position,
+        crate::config::SidebarPositionConfig::Right,
+        "{written}"
+    );
+    assert_eq!(
+        parsed.ui.sidebar.spaces.mode,
+        crate::config::SpacesSidebarMode::Shown
+    );
+    assert_eq!(
+        state.config.sidebar_position,
+        crate::config::SidebarPositionConfig::Right
+    );
+
+    let frame = state.compose(106, 30).expect("settings after save");
+    let text = frame_rows(&frame).join("\n");
+    assert!(text.contains("right ✓"), "{text}");
+    assert!(!text.contains("left ✓"), "{text}");
+    state.overlay = None;
+    state.compose(106, 30).expect("right sidebar");
+    assert_eq!(state.hits.sidebar_divider.x, 106 - 26);
+}

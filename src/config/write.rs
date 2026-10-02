@@ -5,6 +5,7 @@ pub(crate) enum ConfigEdit<'a> {
     Sound(bool),
     ToastDelivery(super::ToastDelivery),
     SpacesMode(super::SpacesSidebarMode),
+    SidebarPosition(super::SidebarPositionConfig),
 }
 
 impl ConfigEdit<'_> {
@@ -14,7 +15,7 @@ impl ConfigEdit<'_> {
             Self::StatusIndicators(_) => "status indicators",
             Self::Sound(_) => "sound setting",
             Self::ToastDelivery(_) => "toast setting",
-            Self::SpacesMode(_) => "sidebar setting",
+            Self::SpacesMode(_) | Self::SidebarPosition(_) => "sidebar setting",
         }
     }
 
@@ -49,6 +50,12 @@ impl ConfigEdit<'_> {
                 "ui.sidebar.spaces",
                 "mode",
                 &format!("\"{}\"", mode.as_str()),
+            ),
+            Self::SidebarPosition(position) => super::upsert_section_value(
+                content,
+                "ui",
+                "sidebar_position",
+                &format!("\"{}\"", position.as_str()),
             ),
         }
     }
@@ -155,5 +162,26 @@ mod tests {
         assert!(written.contains("# <<< plugin sidebar block"), "{written}");
         let parsed: super::super::Config = toml::from_str(&written).unwrap();
         assert_eq!(parsed.ui.sidebar.agents.rows_by_agent.len(), 1);
+    }
+
+    #[test]
+    fn sidebar_position_edit_round_trips_through_the_config_parser() {
+        use super::super::SidebarPositionConfig::{Left, Right};
+
+        let position_after = |content: &str, position| {
+            let written = ConfigEdit::SidebarPosition(position).apply(content);
+            let parsed: super::super::Config = toml::from_str(&written)
+                .unwrap_or_else(|error| panic!("{error}\n--- written ---\n{written}"));
+            assert_eq!(parsed.ui.sidebar_position, position, "{written}");
+            written
+        };
+
+        position_after("", Right);
+        let plugin_tagged =
+            "[ui]\nagent_panel_sort = \"spaces\" # plugin\n\n[ui.toast]\ndelivery = \"herdr\"\n";
+        let right = position_after(plugin_tagged, Right);
+        assert!(right.contains("# plugin"), "{right}");
+        let left = position_after(&right, Left);
+        assert_eq!(left.matches("sidebar_position").count(), 1, "{left}");
     }
 }

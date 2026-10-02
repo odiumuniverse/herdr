@@ -17,8 +17,16 @@ fn indicator_index(style: crate::config::StatusIndicatorStyle) -> usize {
     usize::from(style == crate::config::StatusIndicatorStyle::Symbols)
 }
 
-fn spaces_mode_index(mode: crate::config::SpacesSidebarMode) -> usize {
+/// The sidebar section lists two settings: Spaces shown/hidden (0, 1), then
+/// the sidebar edge left/right (2, 3).
+pub(super) const SIDEBAR_CHOICES: usize = 4;
+
+pub(super) fn spaces_mode_index(mode: crate::config::SpacesSidebarMode) -> usize {
     usize::from(mode == crate::config::SpacesSidebarMode::Hidden)
+}
+
+pub(super) fn sidebar_position_index(position: crate::config::SidebarPositionConfig) -> usize {
+    2 + usize::from(position == crate::config::SidebarPositionConfig::Right)
 }
 
 fn toast_index(delivery: crate::config::ToastDelivery) -> usize {
@@ -102,9 +110,8 @@ impl ClientShellState {
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::Settings(settings)) => match settings.section {
                 ClientSettingsSection::Theme => crate::config::THEME_NAMES.len(),
-                ClientSettingsSection::Indicators
-                | ClientSettingsSection::Sound
-                | ClientSettingsSection::Sidebar => 2,
+                ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
+                ClientSettingsSection::Sidebar => SIDEBAR_CHOICES,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
             },
@@ -230,12 +237,21 @@ impl ClientShellState {
                 );
             }
             ClientSettingsSection::Sidebar => {
-                let mode = if selected == 0 {
-                    crate::config::SpacesSidebarMode::Shown
-                } else {
-                    crate::config::SpacesSidebarMode::Hidden
+                let edit = match selected {
+                    0 => crate::config::ConfigEdit::SpacesMode(
+                        crate::config::SpacesSidebarMode::Shown,
+                    ),
+                    1 => crate::config::ConfigEdit::SpacesMode(
+                        crate::config::SpacesSidebarMode::Hidden,
+                    ),
+                    2 => crate::config::ConfigEdit::SidebarPosition(
+                        crate::config::SidebarPositionConfig::Left,
+                    ),
+                    _ => crate::config::ConfigEdit::SidebarPosition(
+                        crate::config::SidebarPositionConfig::Right,
+                    ),
                 };
-                self.save_settings_edit(crate::config::ConfigEdit::SpacesMode(mode), outcome);
+                self.save_settings_edit(edit, outcome);
             }
             ClientSettingsSection::Integrations => self.install_recommended_integrations(outcome),
         }

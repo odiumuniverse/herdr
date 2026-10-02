@@ -676,6 +676,7 @@ impl ClientShellState {
                     &self.active_endpoint_id,
                     &self.config.keybinds,
                     &self.config.palette,
+                    (self.config.spaces.mode, self.config.sidebar_position),
                 )?;
                 occlusion.cover(rendered.area);
                 self.hits.overlay_primary = rendered.primary;

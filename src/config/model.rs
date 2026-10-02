@@ -888,6 +888,15 @@ pub enum SidebarPositionConfig {
     Right,
 }
 
+impl SidebarPositionConfig {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Left => "left",
+            Self::Right => "right",
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PaneBordersConfig {
     #[default]

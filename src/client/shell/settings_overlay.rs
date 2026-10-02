@@ -37,6 +37,10 @@ pub(super) fn render_settings_overlay(
     buffer: &mut Buffer,
     settings: &ClientSettingsOverlay,
     integration_updates_available: bool,
+    sidebar: (
+        crate::config::SpacesSidebarMode,
+        crate::config::SidebarPositionConfig,
+    ),
     palette: &Palette,
 ) -> Option<OverlayRender> {
     let integration_height = 14u16
@@ -195,13 +199,36 @@ pub(super) fn render_settings_overlay(
             );
         }
         ClientSettingsSection::Sidebar => {
-            render_choice_section(
+            let (spaces_mode, position) = sidebar;
+            let current = [
+                super::settings::spaces_mode_index(spaces_mode),
+                super::settings::sidebar_position_index(position),
+            ];
+            render_choice_group(
                 buffer,
                 content,
                 "spaces section",
                 "hide it to give the sidebar to agents; the workspace picker still shows it",
                 &["shown", "hidden"],
+                0,
                 settings.selected,
+                &current,
+                palette,
+                &mut choice_hits,
+            );
+            render_choice_group(
+                buffer,
+                Rect {
+                    y: content.y.saturating_add(6),
+                    height: content.height.saturating_sub(6),
+                    ..content
+                },
+                "sidebar edge",
+                "which side of the window the sidebar sits on",
+                &["left", "right"],
+                2,
+                settings.selected,
+                &current,
                 palette,
                 &mut choice_hits,
             );
@@ -303,6 +330,61 @@ fn render_choice_section(
         }
         let rect = Rect::new(area.x, y, area.width, 1);
         draw_choice(buffer, rect, choice, index == selected, false, palette);
+        hits.push((rect, index));
+    }
+}
+
+/// One of several choice lists in a section. Choice `n` of this group is
+/// section index `first_index + n`; `current` marks applied values with ✓.
+fn render_choice_group(
+    buffer: &mut Buffer,
+    area: Rect,
+    title: &str,
+    description: &str,
+    choices: &[&str],
+    first_index: usize,
+    selected: usize,
+    current: &[usize],
+    palette: &Palette,
+    hits: &mut Vec<(Rect, usize)>,
+) {
+    if area.height < 3 {
+        return;
+    }
+    put_text(
+        buffer,
+        area.x,
+        area.y,
+        area.width,
+        title,
+        Style::default()
+            .fg(palette.text)
+            .bg(palette.panel_bg)
+            .add_modifier(Modifier::BOLD),
+    );
+    put_text(
+        buffer,
+        area.x,
+        area.y + 1,
+        area.width,
+        description,
+        Style::default().fg(palette.overlay1).bg(palette.panel_bg),
+    );
+    for (offset, choice) in choices.iter().enumerate() {
+        let y = area.y + 3 + offset as u16;
+        if y >= area.bottom() {
+            break;
+        }
+        let index = first_index + offset;
+        let rect = Rect::new(area.x, y, area.width, 1);
+        draw_choice(
+            buffer,
+            rect,
+            choice,
+            index == selected,
+            current.contains(&index),
+            palette,
+        );
         hits.push((rect, index));
     }
 }
