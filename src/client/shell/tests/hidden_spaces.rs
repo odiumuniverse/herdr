@@ -137,6 +137,44 @@ fn hidden_spaces_give_the_sidebar_to_agents_and_keep_new_and_menu() {
 }
 
 #[test]
+fn hidden_spaces_footer_mirrors_on_a_right_sidebar() {
+    let mut config = hidden_config();
+    config.ui.sidebar_position = crate::config::SidebarPositionConfig::Right;
+    let mut state = state_with(&config);
+    let frame = state.compose(106, 30).expect("right hidden frame");
+    let rows = frame_rows(&frame);
+    let divider = state.hits.sidebar_divider;
+    let toggle = state.hits.sidebar_toggle;
+    let row_from_divider = |y: u16| -> String {
+        rows[usize::from(y)]
+            .chars()
+            .skip(usize::from(divider.x))
+            .collect()
+    };
+
+    assert_eq!(divider.x, 106 - 26, "the sidebar sits on the right edge");
+    assert!(state.hits.workspaces.is_empty());
+    assert_eq!(state.hits.sidebar_section_divider, Rect::default());
+    assert!(row_from_divider(divider.y).starts_with("│ agents"));
+
+    // `»` takes the outer column; `new` follows it and `menu` ends at the
+    // window's right edge.
+    assert_eq!(toggle.x, divider.x + 1);
+    assert_eq!(state.hits.new_workspace.x, toggle.x + 1);
+    assert_eq!(state.hits.new_workspace.y, toggle.y);
+    assert_eq!(state.hits.global_launcher.y, toggle.y);
+    assert_eq!(state.hits.global_launcher.right(), 106);
+    let footer = row_from_divider(toggle.y);
+    assert!(footer.starts_with("│» new"), "{footer}");
+    assert!(footer.trim_end().ends_with("menu"), "{footer}");
+    assert!(state
+        .hits
+        .agents
+        .iter()
+        .all(|(rect, _)| rect.x > divider.x && rect.bottom() <= toggle.y));
+}
+
+#[test]
 fn hidden_footer_still_creates_a_space_and_opens_the_menu() {
     let mut state = state_with(&hidden_config());
     state.compose(106, 30).expect("hidden frame");
