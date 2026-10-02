@@ -313,6 +313,8 @@ The sidebar is the main Herdr dashboard. Search `ui.` in the [Config reference](
 
 `ui.pane_borders` accepts `"auto"` (the default, borders only for split panes), `"always"` (also frame a single pane), or `"off"`. A single-pane frame requires `ui.pane_outer_borders = true`, because all its edges are outer edges. Existing boolean values remain valid: `true` means `"auto"` and `false` means `"off"`.
 
+Set `mode = "hidden"` under `[ui.sidebar.spaces]`, or choose `sidebar` in Settings, to give the whole sidebar to the Agents panel. `new` and `menu` move to the bottom row, right-clicking an Agent row opens its Space menu, and the workspace picker shows the Spaces section while it is open. Spaces without agents stay reachable through keybindings, the picker, and the navigator. With saved machines, the machine rows stay so you can switch machines. The mobile layout is unchanged.
+
 Set `tab_bar_position = "bottom"` under `[ui]` to place the desktop tab row below the terminal panes. Prefix, Navigate, Copy, and Resize mode bars temporarily replace the bottom tab row while active. The default is `"top"`.
 
 Configure an ordered tmux-style status area at the right edge of the tab row:

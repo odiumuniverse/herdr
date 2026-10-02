@@ -1073,6 +1073,16 @@
           "description": "Complete Agent-row overrides keyed by strict canonical agent id. Agents without an override use ui.sidebar.agents.rows."
         },
         {
+          "key": "ui.sidebar.spaces.mode",
+          "type": "enum",
+          "default": "shown",
+          "description": "Whether the expanded and collapsed sidebar draw the Spaces section. hidden gives its height to the Agents panel and moves new and menu to the bottom row. The workspace picker still shows the section while it is open, and right-clicking an Agent row opens its Space menu. The mobile layout is unchanged.",
+          "values": [
+            "shown",
+            "hidden"
+          ]
+        },
+        {
           "key": "ui.sidebar.spaces.row_gap",
           "type": "integer",
           "default": "0",

@@ -1889,6 +1889,89 @@ fn context_menu_lookup_ignores_inactive_endpoint_workspaces() {
     );
 }
 
+/// Both machines run one agent; the Spaces section is hidden.
+fn state_with_remote_and_hidden_spaces() -> (ClientShellState, ClientEndpointId) {
+    let (mut state, endpoint_id) = state_with_remote();
+    state.config.spaces.mode = crate::config::SpacesSidebarMode::Hidden;
+    let mut local = snapshot();
+    local.agents = vec![agent("local", crate::api::schema::AgentStatus::Idle, 1)];
+    state.set_snapshot(Box::new(local));
+    let mut remote = snapshot();
+    remote.boot_id = "remote-boot".into();
+    remote.workspaces[0].label = "remote-workspace".into();
+    remote.agents = vec![agent("remote", crate::api::schema::AgentStatus::Idle, 1)];
+    state.set_endpoint_snapshot(&endpoint_id, Box::new(remote));
+    (state, endpoint_id)
+}
+
+fn endpoint_agent_rect(state: &ClientShellState, endpoint_id: &ClientEndpointId) -> Rect {
+    state
+        .hits
+        .endpoint_agents
+        .iter()
+        .find(|(_, id, _)| id == endpoint_id)
+        .map(|(rect, _, _)| *rect)
+        .expect("endpoint agent row")
+}
+
+#[test]
+fn hidden_spaces_keep_machine_rows_and_drop_their_spaces() {
+    let (mut state, _) = state_with_remote_and_hidden_spaces();
+    state.compose(100, 28).expect("expanded endpoint frame");
+
+    assert_eq!(state.hits.machines.len(), 2);
+    assert!(state.hits.workspaces.is_empty());
+    assert_eq!(state.hits.sidebar_section_divider, Rect::default());
+    let last_machine = state
+        .hits
+        .machines
+        .iter()
+        .map(|hit| hit.rect.bottom())
+        .max()
+        .expect("machine rows");
+    assert_eq!(
+        state.hits.new_workspace.y, last_machine,
+        "the machines section fits its rows, footer included"
+    );
+    assert_eq!(state.hits.endpoint_agents.len(), 2);
+
+    state.sidebar_collapsed = true;
+    state.compose(100, 28).expect("collapsed endpoint frame");
+    assert_eq!(state.hits.machines.len(), 2);
+    assert!(state.hits.workspaces.is_empty());
+}
+
+#[test]
+fn right_click_on_another_machines_agent_opens_no_space_menu() {
+    let (mut state, endpoint_id) = state_with_remote_and_hidden_spaces();
+    state.compose(100, 28).expect("expanded endpoint frame");
+    let remote = endpoint_agent_rect(&state, &endpoint_id);
+    let local = endpoint_agent_rect(&state, &ClientEndpointId::Local);
+    let right_click = |state: &mut ClientShellState, at: Rect| {
+        state.handle_raw_events(vec![RawInputEvent::Mouse(crossterm::event::MouseEvent {
+            kind: MouseEventKind::Down(MouseButton::Right),
+            column: at.x,
+            row: at.y,
+            modifiers: KeyModifiers::empty(),
+        })])
+    };
+
+    right_click(&mut state, remote);
+    assert!(!matches!(
+        state.overlay,
+        Some(ClientShellOverlay::ContextMenu(_))
+    ));
+
+    right_click(&mut state, local);
+    assert!(matches!(
+        &state.overlay,
+        Some(ClientShellOverlay::ContextMenu(ClientContextMenuOverlay {
+            target: ClientContextMenuTarget::Workspace { workspace_id, .. },
+            ..
+        })) if workspace_id == "ws_1"
+    ));
+}
+
 #[test]
 fn future_surface_waits_for_its_exact_snapshot_revision() {
     let (mut state, _) = state_with_remote();

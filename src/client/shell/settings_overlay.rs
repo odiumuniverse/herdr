@@ -194,6 +194,18 @@ pub(super) fn render_settings_overlay(
                 &mut choice_hits,
             );
         }
+        ClientSettingsSection::Sidebar => {
+            render_choice_section(
+                buffer,
+                content,
+                "spaces section",
+                "hide it to give the sidebar to agents; the workspace picker still shows it",
+                &["shown", "hidden"],
+                settings.selected,
+                palette,
+                &mut choice_hits,
+            );
+        }
         ClientSettingsSection::Integrations => {
             render_integrations(buffer, content, settings, palette);
         }

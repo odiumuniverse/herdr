@@ -58,6 +58,7 @@ pub(super) fn render_expanded(
         agent_view_label,
         config,
         hits,
+        true,
     ) {
         return;
     }
@@ -65,6 +66,7 @@ pub(super) fn render_expanded(
     super::agent_sidebar::render_agent_list(
         buffer,
         area,
+        super::agent_sidebar::agent_panel_header_rows(true),
         &rows,
         agent_view_label.map(|_| " no matching agents"),
         config,

@@ -65,6 +65,30 @@ pub(crate) fn expanded_sidebar_sections(area: Rect, split_ratio: f32) -> (Rect, 
     )
 }
 
+/// Sections whose top part is sized to its content instead of the dragged
+/// split, keeping at least three rows for the bottom part.
+pub(crate) fn fitted_sidebar_sections(area: Rect, top_height: u16) -> (Rect, Rect) {
+    let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
+    if content.is_empty() {
+        return (Rect::default(), Rect::default());
+    }
+
+    let top_height = if content.height < 6 {
+        content.height.div_ceil(2)
+    } else {
+        top_height.min(content.height.saturating_sub(3))
+    };
+    (
+        Rect::new(content.x, content.y, content.width, top_height),
+        Rect::new(
+            content.x,
+            content.y + top_height,
+            content.width,
+            content.height.saturating_sub(top_height),
+        ),
+    )
+}
+
 pub(crate) fn sidebar_section_divider_rect(area: Rect, split_ratio: f32) -> Rect {
     let content = Rect::new(area.x, area.y, area.width.saturating_sub(1), area.height);
     if content.width == 0 || content.height < 6 {
@@ -293,4 +317,28 @@ fn apply_token_style(mut style: Style, patch: crate::config::SidebarTokenStyle) 
         };
     }
     style
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fitted_sections_size_the_top_to_its_content_and_leave_room_below() {
+        let area = Rect::new(0, 2, 31, 30);
+        let (top, rest) = fitted_sidebar_sections(area, 5);
+        assert_eq!(top, Rect::new(0, 2, 30, 5));
+        assert_eq!(rest, Rect::new(0, 7, 30, 25));
+
+        let (top, rest) = fitted_sidebar_sections(area, 100);
+        assert_eq!(top.height, 27);
+        assert_eq!(rest.height, 3);
+
+        let (top, rest) = fitted_sidebar_sections(Rect::new(0, 0, 31, 4), 1);
+        assert_eq!((top.height, rest.height), (2, 2));
+        assert_eq!(
+            fitted_sidebar_sections(Rect::new(0, 0, 1, 10), 3),
+            (Rect::default(), Rect::default())
+        );
+    }
 }

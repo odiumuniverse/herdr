@@ -387,6 +387,7 @@ pub(super) enum ClientSettingsSection {
     Indicators,
     Sound,
     Toast,
+    Sidebar,
     Integrations,
 }
 
@@ -397,6 +398,7 @@ impl ClientSettingsSection {
         Self::Sound,
         Self::Toast,
         Self::Integrations,
+        Self::Sidebar,
     ];
 
     pub(super) fn label(self) -> &'static str {
@@ -405,6 +407,7 @@ impl ClientSettingsSection {
             Self::Indicators => "indicators",
             Self::Sound => "sound",
             Self::Toast => "toasts",
+            Self::Sidebar => "sidebar",
             Self::Integrations => "integrations",
         }
     }

@@ -1830,8 +1830,13 @@ impl ClientShellState {
                 if !self.config.mouse_capture {
                     return;
                 }
+                // An agent row opens its Space's menu too, so the Space
+                // actions stay on the mouse while the Spaces section is hidden.
                 let workspace_id = (!self.sidebar_collapsed)
-                    .then(|| self.active_endpoint_workspace_at(point))
+                    .then(|| {
+                        self.active_endpoint_workspace_at(point)
+                            .or_else(|| self.active_endpoint_agent_workspace_at(point))
+                    })
                     .flatten();
                 if let Some(workspace_id) = workspace_id {
                     self.open_workspace_context_menu(workspace_id, mouse.column, mouse.row);

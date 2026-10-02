@@ -4,6 +4,7 @@ pub(crate) enum ConfigEdit<'a> {
     StatusIndicators(super::StatusIndicatorStyle),
     Sound(bool),
     ToastDelivery(super::ToastDelivery),
+    SpacesMode(super::SpacesSidebarMode),
 }
 
 impl ConfigEdit<'_> {
@@ -13,6 +14,7 @@ impl ConfigEdit<'_> {
             Self::StatusIndicators(_) => "status indicators",
             Self::Sound(_) => "sound setting",
             Self::ToastDelivery(_) => "toast setting",
+            Self::SpacesMode(_) => "sidebar setting",
         }
     }
 
@@ -42,6 +44,12 @@ impl ConfigEdit<'_> {
                 let content = super::upsert_section_value(content, "ui.toast", "delivery", value);
                 super::remove_section_key(&content, "ui.toast", "enabled")
             }
+            Self::SpacesMode(mode) => super::upsert_section_value(
+                content,
+                "ui.sidebar.spaces",
+                "mode",
+                &format!("\"{}\"", mode.as_str()),
+            ),
         }
     }
 }
@@ -105,5 +113,47 @@ mod tests {
             toml::from_str::<toml::Value>(&written).is_ok(),
             "written config is not valid TOML: {written:?}"
         );
+    }
+
+    fn spaces_mode_after(content: &str, mode: super::super::SpacesSidebarMode) -> String {
+        let written = ConfigEdit::SpacesMode(mode).apply(content);
+        let parsed: super::super::Config = toml::from_str(&written)
+            .unwrap_or_else(|error| panic!("{error}\n--- written ---\n{written}"));
+        assert_eq!(parsed.ui.sidebar.spaces.mode, mode, "{written}");
+        written
+    }
+
+    #[test]
+    fn spaces_mode_edit_round_trips_through_the_config_parser() {
+        use super::super::SpacesSidebarMode::{Hidden, Shown};
+
+        // No sidebar table at all.
+        let written = spaces_mode_after("[ui]\nsidebar_width = 30\n", Hidden);
+        assert!(written.contains("sidebar_width = 30"), "{written}");
+
+        // An existing Spaces table keeps its rows; a second edit replaces
+        // the value instead of adding another key.
+        let rows = "[ui.sidebar.spaces]\nrows = [[\"state_icon\", \"workspace\"]]\nrow_gap = 1\n";
+        let hidden = spaces_mode_after(rows, Hidden);
+        let shown = spaces_mode_after(&hidden, Shown);
+        assert_eq!(shown.matches("mode =").count(), 1, "{shown}");
+        let parsed: super::super::Config = toml::from_str(&shown).unwrap();
+        assert_eq!(parsed.ui.sidebar.spaces.row_gap, 1);
+        assert_eq!(parsed.ui.sidebar.spaces.rows.len(), 1);
+
+        // A plugin-managed agents block, as sidebar plugins write it.
+        let plugin = concat!(
+            "[ui]\n\n",
+            "# >>> plugin sidebar block\n",
+            "[ui.sidebar.agents]\n",
+            "rows = [[{ token = \"$logo\", fg = \"#e9e9f0\" }, \"agent\"]]\n\n",
+            "[ui.sidebar.agents.rows_by_agent]\n",
+            "claude = [[\"agent\"]]\n",
+            "# <<< plugin sidebar block\n",
+        );
+        let written = spaces_mode_after(plugin, Hidden);
+        assert!(written.contains("# <<< plugin sidebar block"), "{written}");
+        let parsed: super::super::Config = toml::from_str(&written).unwrap();
+        assert_eq!(parsed.ui.sidebar.agents.rows_by_agent.len(), 1);
     }
 }

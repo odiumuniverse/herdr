@@ -17,6 +17,10 @@ fn indicator_index(style: crate::config::StatusIndicatorStyle) -> usize {
     usize::from(style == crate::config::StatusIndicatorStyle::Symbols)
 }
 
+fn spaces_mode_index(mode: crate::config::SpacesSidebarMode) -> usize {
+    usize::from(mode == crate::config::SpacesSidebarMode::Hidden)
+}
+
 fn toast_index(delivery: crate::config::ToastDelivery) -> usize {
     match delivery {
         crate::config::ToastDelivery::Off => 0,
@@ -51,6 +55,7 @@ impl ClientShellState {
             ClientSettingsSection::Indicators => indicator_index(self.config.status_indicators),
             ClientSettingsSection::Sound => usize::from(!self.config.sound_enabled),
             ClientSettingsSection::Toast => toast_index(self.config.toast_delivery),
+            ClientSettingsSection::Sidebar => spaces_mode_index(self.config.spaces.mode),
             ClientSettingsSection::Integrations => 0,
         }
     }
@@ -97,7 +102,9 @@ impl ClientShellState {
         match self.overlay.as_ref() {
             Some(ClientShellOverlay::Settings(settings)) => match settings.section {
                 ClientSettingsSection::Theme => crate::config::THEME_NAMES.len(),
-                ClientSettingsSection::Indicators | ClientSettingsSection::Sound => 2,
+                ClientSettingsSection::Indicators
+                | ClientSettingsSection::Sound
+                | ClientSettingsSection::Sidebar => 2,
                 ClientSettingsSection::Toast => 4,
                 ClientSettingsSection::Integrations => settings.integrations.len(),
             },
@@ -221,6 +228,14 @@ impl ClientShellState {
                     crate::config::ConfigEdit::ToastDelivery(delivery),
                     outcome,
                 );
+            }
+            ClientSettingsSection::Sidebar => {
+                let mode = if selected == 0 {
+                    crate::config::SpacesSidebarMode::Shown
+                } else {
+                    crate::config::SpacesSidebarMode::Hidden
+                };
+                self.save_settings_edit(crate::config::ConfigEdit::SpacesMode(mode), outcome);
             }
             ClientSettingsSection::Integrations => self.install_recommended_integrations(outcome),
         }

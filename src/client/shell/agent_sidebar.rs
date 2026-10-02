@@ -49,6 +49,16 @@ pub(super) fn ordered_agent_pane_ids(
         .collect()
 }
 
+/// Rows above the first agent: the rule dividing the panel from the section
+/// above it, when there is one, then the title and a blank row.
+pub(super) fn agent_panel_header_rows(top_rule: bool) -> u16 {
+    if top_rule {
+        3
+    } else {
+        2
+    }
+}
+
 pub(super) fn render_agent_panel(
     buffer: &mut Buffer,
     area: Rect,
@@ -56,6 +66,7 @@ pub(super) fn render_agent_panel(
     config: &ClientShellConfig,
     agent_scroll: &mut usize,
     hits: &mut ShellHitMap,
+    top_rule: bool,
 ) {
     if !render_agent_panel_header(
         buffer,
@@ -63,6 +74,7 @@ pub(super) fn render_agent_panel(
         snapshot.agent_view_label.as_deref(),
         config,
         hits,
+        top_rule,
     ) {
         return;
     }
@@ -71,6 +83,7 @@ pub(super) fn render_agent_panel(
     render_agent_list(
         buffer,
         area,
+        agent_panel_header_rows(top_rule),
         &rows,
         snapshot
             .agent_view_label
@@ -93,25 +106,29 @@ pub(super) fn render_agent_panel_header(
     agent_view_label: Option<&str>,
     config: &ClientShellConfig,
     hits: &mut ShellHitMap,
+    top_rule: bool,
 ) -> bool {
     if area.height == 0 {
         return false;
     }
-    put_text(
-        buffer,
-        area.x,
-        area.y,
-        area.width,
-        &"─".repeat(area.width as usize),
-        Style::default().fg(config.palette.surface_dim),
-    );
-    if area.height < 2 {
+    if top_rule {
+        put_text(
+            buffer,
+            area.x,
+            area.y,
+            area.width,
+            &"─".repeat(area.width as usize),
+            Style::default().fg(config.palette.surface_dim),
+        );
+    }
+    let title_y = area.y + agent_panel_header_rows(top_rule) - 2;
+    if title_y >= area.bottom() {
         return false;
     }
     put_text(
         buffer,
         area.x,
-        area.y + 1,
+        title_y,
         area.width,
         " agents",
         Style::default()
@@ -125,7 +142,7 @@ pub(super) fn render_agent_panel_header(
     let sort_width = display_width(sort_label).min(area.width as usize) as u16;
     let sort_rect = Rect::new(
         area.right().saturating_sub(sort_width),
-        area.y + 1,
+        title_y,
         sort_width,
         1,
     );
@@ -154,6 +171,7 @@ pub(super) fn render_agent_panel_header(
 pub(super) fn render_agent_list<T>(
     buffer: &mut Buffer,
     area: Rect,
+    header_rows: u16,
     rows: &[T],
     empty_message: Option<&str>,
     config: &ClientShellConfig,
@@ -164,9 +182,9 @@ pub(super) fn render_agent_list<T>(
 ) {
     let body = Rect::new(
         area.x,
-        area.y.saturating_add(3),
+        area.y.saturating_add(header_rows),
         area.width,
-        area.height.saturating_sub(3),
+        area.height.saturating_sub(header_rows),
     );
     hits.agent_body = body;
     if body.is_empty() || rows.is_empty() {

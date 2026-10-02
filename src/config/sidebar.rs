@@ -455,12 +455,34 @@ impl Default for AgentsSidebarConfig {
     }
 }
 
+/// Whether the sidebar draws its Spaces section.
+///
+/// `Hidden` gives the section's height to the agents panel. Spaces stay
+/// reachable through keybindings, the workspace picker, and agent rows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SpacesSidebarMode {
+    #[default]
+    Shown,
+    Hidden,
+}
+
+impl SpacesSidebarMode {
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::Shown => "shown",
+            Self::Hidden => "hidden",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SpacesSidebarConfig {
     #[serde(deserialize_with = "deserialize_sidebar_rows")]
     pub rows: SpaceSidebarRows,
     pub row_gap: u16,
+    pub mode: SpacesSidebarMode,
 }
 
 impl Default for SpacesSidebarConfig {
@@ -471,6 +493,7 @@ impl Default for SpacesSidebarConfig {
                 vec![SpaceSidebarToken::Branch, SpaceSidebarToken::GitStatus],
             ],
             row_gap: DEFAULT_SIDEBAR_ROW_GAP,
+            mode: SpacesSidebarMode::Shown,
         }
     }
 }
@@ -511,6 +534,25 @@ mod tests {
             ]
         );
         assert_eq!(config.spaces.row_gap, 0);
+        assert_eq!(config.spaces.mode, SpacesSidebarMode::Shown);
+    }
+
+    #[test]
+    fn spaces_mode_parses_shown_and_hidden_and_rejects_anything_else() {
+        let parse = |mode: &str| {
+            toml::from_str::<crate::config::Config>(&format!(
+                "[ui.sidebar.spaces]\nmode = \"{mode}\"\n"
+            ))
+            .map(|config| config.ui.sidebar.spaces.mode)
+        };
+        assert_eq!(parse("shown").unwrap(), SpacesSidebarMode::Shown);
+        assert_eq!(parse("hidden").unwrap(), SpacesSidebarMode::Hidden);
+        assert!(parse("auto").is_err());
+
+        let rows_only: crate::config::Config =
+            toml::from_str("[ui.sidebar.spaces]\nrow_gap = 1\n").unwrap();
+        assert_eq!(rows_only.ui.sidebar.spaces.mode, SpacesSidebarMode::Shown);
+        assert_eq!(rows_only.ui.sidebar.spaces.row_gap, 1);
     }
 
     #[test]

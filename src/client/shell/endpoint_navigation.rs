@@ -11,6 +11,32 @@ impl ClientShellState {
             .map(|hit| hit.workspace_id.clone())
     }
 
+    /// The Space of the agent row under `point`, when that agent runs on the
+    /// active machine. Another machine's agent has no Space in this snapshot.
+    pub(super) fn active_endpoint_agent_workspace_at(&self, point: (u16, u16)) -> Option<String> {
+        let pane_id = self
+            .hits
+            .agents
+            .iter()
+            .find(|(rect, _)| super::contains(*rect, point))
+            .map(|(_, pane_id)| pane_id)
+            .or_else(|| {
+                self.hits
+                    .endpoint_agents
+                    .iter()
+                    .find(|(rect, endpoint_id, _)| {
+                        *endpoint_id == self.active_endpoint_id && super::contains(*rect, point)
+                    })
+                    .map(|(_, _, pane_id)| pane_id)
+            })?;
+        self.snapshot
+            .as_deref()?
+            .agents
+            .iter()
+            .find(|agent| agent.pane_id == *pane_id)
+            .map(|agent| agent.workspace_id.clone())
+    }
+
     pub(super) fn endpoint_workspace_is_draggable(&self, press: &ClientWorkspacePress) -> bool {
         press.endpoint_id == self.active_endpoint_id
             && self
